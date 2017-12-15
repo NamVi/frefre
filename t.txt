@@ -1,0 +1,30 @@
+		dma_async_issue_pending(chan);
+
+		wait_event_freezable_timeout(done_wait, done.done,
+					     msecs_to_jiffies(params->timeout));
+
+		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
+
+		if (!done.done) {
+			/*
+			 * We're leaving the timed out dma operation with
+			 * dangling pointer to done_wait.  To make this
+			 * correct, we'll need to allocate wait_done for
+			 * each test iteration and perform "who's gonna
+			 * free it this time?" dancing.  For now, just
+			 * leave it dangling.
+			 */
+			dmaengine_unmap_put(um);
+			result("test timed out", total_tests, src_off, dst_off,
+			       len, 0);
+			failed_tests++;
+			continue;
+		} else if (status != DMA_COMPLETE) {
+			dmaengine_unmap_put(um);
+			result(status == DMA_ERROR ?
+			       "completion error status" :
+			       "completion busy status", total_tests, src_off,
+			       dst_off, len, ret);
+			failed_tests++;
+			continue;
+		}
