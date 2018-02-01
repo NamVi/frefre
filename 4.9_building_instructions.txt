@@ -1,0 +1,86 @@
+----------------
+Building
+----------------
+
+This will use the current 3.14 BSP and add linux-4.9 repository from github.
+For building the linux-4.9 kernel, you will use a new command "k49".
+The "k49" command is only temprary for RVC testing work.
+Now, I am making a new BSP environment for 4.9 (rza1_4.9_bsp). It will be uploaded to github in July/August.
+
+
+# Get current BSP
+$ git clone https://github.com/renesas-rz/rskrza1_bsp.git rskrza1_49_bsp
+$ cd rskrza1_49_bsp
+
+# Copy file k49.sh to BSP directory
+$ cp ~/k49.sh .
+
+
+# Add k49.sh to build.sh script
+$ echo "source k49.sh" >> build.sh
+
+
+# Change serial port for RSK from ttySC2 -> ttySC0
+$ ./build.sh config
+
+  # Change "console: /dev/ttySC2" to "console: /dev/ttySC0"
+  # NOTE: For 4.9+, debug console will always /dev/ttySC0 for every board.
+
+     Target Board: rskrza1 [RSK (RZ/A1H)]
+          console: /dev/ttySC0            <<<<<< change <<<<<<<
+         RAM addr: 0x08000000
+      u-boot addr: 0x18000000
+         DTB addr: 0x180C0000
+      kernel addr: 0x18200000
+      rootfs addr: 0x18800000
+             QSPI: DUAL
+
+
+# Get toolchain and build rootfs
+$ ./build.sh buildroot
+
+
+# Program rootfs
+$ ./build.sh jlink output/buildroot-2016.08/output/images/rootfs.squashfs
+on tera term:
+$ sf probe 0:1 ; sf erase 400000 280000 ; sf write 0x08000000 400000 500000
+
+  #Then copy/paste the u-boot command displayed on the screen to the RSK board to program the QSPI
+
+
+
+# Build 4.9 kernel
+$ ./build.sh k49 uImage
+
+
+# Download the kernel (and device trees) to SDRAM using J-LINK
+# NOTE: You do not need to program QSPI flash.
+# NOTE: You must download to SDRAM for each boot.
+$ ./build.sh jlink output/linux-4.9/arch/arm/boot/uImage 09000000
+$ ./build.sh jlink output/linux-4.9/arch/arm/boot/dts/r7s72100-rskrza1.dtb 09800000
+$ ./build.sh jlink output/linux-4.9/arch/arm/boot/dts/r7s72100-rskrza1_testing.dtb 09900000
+
+
+Boot kernel (from binaries in SDRAM)
+
+Normal Device tree (DTB at address 09800000):
+=> bootm start 0x09000000 - 0x09800000 ; bootm loados ; qspi dual; bootm go
+
+Testing Device Tree  (DTB at address 09900000):
+=> bootm start 0x09000000 - 0x09900000 ; bootm loados ; qspi dual; bootm go
+
+
+
+----------------
+Testing
+----------------
+
+For testing, please see file:
+
+  rskrza1_49_bsp/output/linux-4.9/arch/arm/boot/dts/r7s72100-rskrza1_testing.dts
+
+In that file, you will see "#if 0" for testing each section. Change "#if 0" to "#if 1" and then rebuild the device tree files (" ./build.sh k49 dtbs "). Then download binaries to SDRAM and boot again.
+
+
+
+
